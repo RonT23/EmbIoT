@@ -98,8 +98,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
     
     // Encode the configuration parameters with 8-bit CRC
     encode_crc8_bit(message.c_str(), GENERATOR, crc);
-    Serial.print("[INFO] Calculated CRC: ");
-    Serial.println(crc);
+    // Serial.print("[INFO] Calculated CRC: ");
+    // Serial.println(crc);
 
     // Get the configurations parameters
     String DDstr = message.substring(0, 2);
@@ -110,15 +110,15 @@ void callback(char* topic, byte* payload, unsigned int length) {
     temp_threshold = TTstr.toInt();
     hum_threshold  = HHstr.toInt();
 
-    Serial.println("[INFO] callback : Configuration parameters ");
-    Serial.print("\tSampling Time (s) : ");
-    Serial.println(sampling_time);
+    // Serial.println("[INFO] callback : Configuration parameters ");
+    // Serial.print("\tSampling Time (s) : ");
+    // Serial.println(sampling_time);
 
-    Serial.print("\tTemperature Threshold (C) : ");
-    Serial.println(temp_threshold);
+    // Serial.print("\tTemperature Threshold (C) : ");
+    // Serial.println(temp_threshold);
 
-    Serial.print("\tHumidity Threshold (%) : ");
-    Serial.println(hum_threshold);
+    // Serial.print("\tHumidity Threshold (%) : ");
+    // Serial.println(hum_threshold);
 
     // Update flag into initialized
     initialized = true;
@@ -127,7 +127,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   // Topic Data CRC callbacks
   if (topic_str == topicDataCrc) {
     if (message == "crcError") {
-      Serial.println("[ERROR] callback: crcError");
+      // Serial.println("[ERROR] callback: crcError");
       initialized = false;
     }
   }
@@ -135,12 +135,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
   // Topic Control callbacks
   if (topic_str == topicControl) {
     if (message == "updateConfig") {
-      Serial.println("[STATUS] callback: updateConfig");
+      // Serial.println("[STATUS] callback: updateConfig");
       initialized = false;
       startMeasurements = false;
 
     } else if (message == "startMeasurements") {
-      Serial.println("[STATUS] callback: startMeasurements");
+      // Serial.println("[STATUS] callback: startMeasurements");
       startMeasurements = true;
     }
   } 
@@ -237,9 +237,9 @@ int readSensor(float *temp, float *hum) {
 
 // Compute the rate of change of temperature using the least squares method
 void lsq(float *a, float *b, const int n) {
-  float x[n] = {0};
+  float x[n] = {0.0};
   for (int i = 0; i < n; i++){
-    x[i] = i;
+    x[i] = (float)i;
   }
 
   float SUMx  = .0; 
@@ -267,7 +267,15 @@ void lsq(float *a, float *b, const int n) {
 void appendNewTemperature(float new_temp, float *a, float *b) {
   temp_vector[window_index] = new_temp;
   window_index = (window_index + 1) % LSQ_WINDOW_SIZE;
-  if(index == 0) {
+
+  Serial.print("[INFO] appendNewTemperature : Temperature Vector = {");
+  for (int i = 0; i < LSQ_WINDOW_SIZE; i++) {
+    Serial.print(temp_vector[i]);
+    Serial.print(", ");
+  }
+  Serial.println(" }");
+
+  if(window_index == 0) {
     lsq(a, b, LSQ_WINDOW_SIZE);
   }
 }
@@ -351,6 +359,3 @@ void loop() {
 
   client.loop();
 }
-
-
-
