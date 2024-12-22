@@ -14,6 +14,7 @@ const char* MQTT_USER           = "user10";
 const char* MQTT_CLIENT         = "user10"; 
 const char* MQTT_ADDRESS        = "esp-32.zapto.org";
 
+
 /** MQTT Topics **/
 const char* MQTT_TOPIC_CONTROL  = "control";
 const char* MQTT_TOPIC_DATA_CRC = "dataCrc";
@@ -24,22 +25,22 @@ char topicDataCrc[150];
 char topicData[150];
 /** *** *** *** **/
 
-const uint8_t GENERATOR   = 10; // CRC generator
-const int LSQ_WINDOW_SIZE = 5;  // the buffer length for the linear squared approximation
+const uint8_t GENERATOR   = 10; // CRC generator polynomial (x^3 + x^1)
+const int LSQ_WINDOW_SIZE = 5;  // the buffer length for the linear squared approximation model
 
 int sampling_time  = 1000;      // sampling period
 int temp_threshold = 0;         // temperature threshold
 int hum_threshold  = 0;         // humidity threshold
 
-char crc[10];                             // global CRC variable
+char crc[10];                             // checksum
 float temp_vector[LSQ_WINDOW_SIZE] = {0}; // cyclic buffer
 int window_index                   = 0;   // cyclic buffer index
 
 volatile unsigned long measPreviousMillis = 0; // timer
 
-bool initialized = false;         // ctrl flag: sent request to server and configuration values are obtained
-bool startMeasurements = false;   // ctrl flag: sent CRC and startMeasurements command is obtained 
-bool lsqInit = false;             // ctrl flag: the buffer for linear squared approximation is full
+bool initialized = false;         // ctrl flag: sent request to server => configuration values are obtained
+bool startMeasurements = false;   // ctrl flag: sent CRC => startMeasurements command is obtained 
+bool lsqInit = false;             // ctrl flag: start linear squared approximation
 
 void callback(char*, byte*, unsigned int);
 
@@ -59,7 +60,7 @@ uint8_t crc8(uint8_t byte, const uint8_t generator) {
   uint8_t crc = byte;     
 
   for(uint8_t i = 0; i < 8; i++) {
-    if (crc & 0x80) {
+    if (crc & 0x80) { // 0x80 = b10000000
       crc = (crc << 1) ^ generator;
     } else {
       crc <<= 1;
@@ -71,13 +72,13 @@ uint8_t crc8(uint8_t byte, const uint8_t generator) {
 
 
 /* 
-  Function to encode a 6-digit number in pairs as a byte using CRC 8-bit algorithm 
+  Function to compute the checksum of a 6-digit number in pairs using the CRC 8-bit algorithm 
 
   @input : the 6-digit input string
   @generator : the generator value to be used for the CRC encoding
-  @output : the CRC encoded string of 9-digits
+  @output : the CRC checksum string of 9-digits
 */
-void encode_crc8(const char* input, uint8_t generator, char* output) {
+void compute_crc8(const char* input, uint8_t generator, char* output) {
 
     char buffer[3];
     int outputIndex = 0;
@@ -102,7 +103,8 @@ void encode_crc8(const char* input, uint8_t generator, char* output) {
 
     output[9] = '\0';
 }
-/* end of encode_crc8 */
+/* end of compute_crc8 */
+
 
 
 /* 
@@ -123,8 +125,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   if (topic_str == topicData) {
     
-    // encode the received configuration string with 8-bit CRC
-    encode_crc8(message.c_str(), GENERATOR, crc);
+    // compute the checksum of the received configuration string with 8-bit CRC
+    compute_crc8(message.c_str(), GENERATOR, crc);
     
     // extract the configurations values from the configuration string received
     String DDstr = message.substring(0, 2);
@@ -191,7 +193,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     }
   } 
 
-}/* end of callback() */
+}/* end of callback */
 
 
 
@@ -202,7 +204,7 @@ void mqttConnect() {
   
   // Loop until we're reconnected
   while (!client.connected()) {
-    Serial.print("[STATUS] mqttConnect : Attempting MQTT connection");
+    Serial.println("[STATUS] mqttConnect : Attempting MQTT connection");
     
     // Attempt to connect
     if (client.connect(MQTT_CLIENT, "samos", "karlovasi33#")) {
@@ -290,7 +292,7 @@ void threshold(float val, float thresh, const char* message) {
   if (val > thresh) {
     Serial.println(message);
   }
-}
+}/* end of threshold */
 
 
 
@@ -321,26 +323,24 @@ int readSensor(float *temp, float *hum) {
   @param n : the number of inputs to apply the method 
 */
 void lsq(float *a, float *b, const int n) {
-  float x[n] = {0.0};
-  for (int i = 0; i < n; i++){
-    x[i] = (float)i;
-  }
 
   float SUMx  = .0; 
   float SUMy  = .0; 
   float SUMxy = .0; 
   float SUMxx = .0;
 
+  // Here x[i] = i
   for( int i = 0; i < n; i++) {
-    SUMx  += x[i];
+    SUMx  += i;
     SUMy  += temp_vector[i];
-    SUMxy += x[i] * temp_vector[i];
-    SUMxx += x[i] * x[i];
+    SUMxy += i * temp_vector[i];
+    SUMxx += i * i;
   }
   
   *a = ( n * SUMxy - SUMx * SUMy) / ( SUMx*SUMx - n * SUMxx );
   *b = ( SUMy - (*a) * SUMx ) / n; 
 }/* end of lsq */
+
 
 
 /* 
@@ -374,6 +374,7 @@ int append(float val, int index, int n, float *buff) {
 
 
 
+
 void setup() {
   Serial.begin(115200);
   while(!Serial){  delay(1000);  } // wait until serial is ready
@@ -397,7 +398,26 @@ void setup() {
   mqttConnect();
 }
 
+
+
 void loop() {
+
+  // Reconnect if disconnected from WiFi
+  if (WiFi.status() != WL_CONNECTED) {  
+    unsigned long start_time = millis();
+
+    wifiConnect(WIFI_SSID, WIFI_PASSWORD);  
+
+    // if 1 min without connection reset control variables
+    if(millis() - start_time > 60000){
+      initialized = false;
+      startMeasurements = false;
+      lsqInit = false;
+    }
+
+  }
+
+
 
   // Interactions with the MQTT server if connected, else try to connect
   if ( client.connected() ) {
@@ -410,15 +430,27 @@ void loop() {
     if( (initialized) && (!startMeasurements) ) {
       client.publish(topicDataCrc, crc);
     }
-  } else {   mqttConnect();  }
 
-  // enable the lsq computation when the buffer is full of valid data.
-  if ( (window_index == LSQ_WINDOW_SIZE-1) && (lsqInit == false) && (startMeasurements) ){
-    lsqInit = true;
-  } else if ((!initialized) || (!startMeasurements)) {
-    lsqInit = false;
-    window_index = 0;
+  } else {   
+    unsigned long start_time = millis();
+    
+    mqttConnect();  
+    
+    // if 1 min without connection reset control variables
+    if(millis() - start_time > 60000){
+      initialized = false;
+      startMeasurements = false;
+      lsqInit = false;
+    }
+
   }
+
+
+
+  // enable the lsq computation when the buffer is full with valid data.
+  if ( (window_index == LSQ_WINDOW_SIZE-1) && (!lsqInit) && (startMeasurements) ){  lsqInit = true;  }
+
+
 
   // perform sampling and data processing
   if( (initialized) && (startMeasurements) ) {
@@ -468,8 +500,6 @@ void loop() {
     }
   }
   
-  // Reconnect if disconnected from WiFi
-  if (WiFi.status() != WL_CONNECTED) {  wifiConnect(WIFI_SSID, WIFI_PASSWORD);  }
 
   client.loop();
 }
