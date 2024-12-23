@@ -373,16 +373,37 @@ int append(float val, int index, int n, float *buff) {
 }/* end append */
 
 
-
-
 void setup() {
   Serial.begin(115200);
-  while(!Serial){  delay(1000);  } // wait until serial is ready
+  while(!Serial){  delay(1000);  } // wait until serial is initialized
+  
+  // give some time to serial interface...
+  delay(2000);
+
+  // Print the logo
+  Serial.println("=========================================");
+  Serial.println("*****************************************");
+  Serial.println(" ______         _     ___       ________ ");
+  Serial.println("|  ____)__   __| |   (   )     /__   __/ ");
+  Serial.println("| |____/  \\_/  \\ |__  | |    __   | |    ");
+  Serial.println("|  ____|   |   |  _ \\ | |  / __ \\ | |    ");
+  Serial.println("| |____| | | | | |_) )| | | (__) || |    ");
+  Serial.println("|_______/|_|_|_|____/(___) \\ __ / |_|    ");
+  Serial.println("");
+  Serial.println("*****************************************");
+  Serial.println("=========================================");
+  Serial.println("");
+  Serial.println("    Ronaldo Tsela                        ");
+  Serial.println("    December 2024                        ");
+  Serial.println("    V1.0                                 ");
+  Serial.println("");
+  Serial.println("*****************************************");
+  Serial.println("=========================================");
 
   // initialize the sensor
   dht22.setup(DHT_PIN, DHTesp::DHT22);
   while (dht22.getStatus() != DHTesp::ERROR_NONE){  delay(1000);   }
-
+  
   // Connect to WiFi
   wifiConnect(WIFI_SSID, WIFI_PASSWORD);
 
