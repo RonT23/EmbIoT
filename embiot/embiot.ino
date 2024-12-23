@@ -123,7 +123,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   String message(p);
   String topic_str(topic);
 
-  if (topic_str == topicData) {
+  if ( (topic_str == topicData) && (!initialized)) {
     
     // compute the checksum of the received configuration string with 8-bit CRC
     compute_crc8(message.c_str(), GENERATOR, crc);
@@ -139,11 +139,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
     hum_threshold  = HHstr.toInt();
 
     #ifdef DEBUG_MODE 
-      Serial.print("[INFO] Calculated CRC: ");
-      Serial.println(crc);
-
       Serial.println("[INFO] callback : Configuration parameters ");
-      Serial.print("\tSampling Time (s) : ");
+      Serial.print("\tSampling Period (s) : ");
       Serial.println(sampling_time);
 
       Serial.print("\tTemperature Threshold (C) : ");
@@ -151,6 +148,9 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
       Serial.print("\tHumidity Threshold (%) : ");
       Serial.println(hum_threshold);
+
+      Serial.print("[INFO] callback : CRC Checksum : ");
+      Serial.println(crc);
     #endif
     
     // update flag into initialized
@@ -182,7 +182,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       initialized = false;
       startMeasurements = false;
 
-    } else if (message == "startMeasurements") {
+    } else if ( (message == "startMeasurements") && (!startMeasurements)) {
 
       #ifdef DEBUG_MODE
         Serial.println("[STATUS] callback: startMeasurements");
