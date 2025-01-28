@@ -337,7 +337,7 @@ void lsq(float *a, float *b, const int n) {
     SUMxx += i * i;
   }
   
-  *a = ( n * SUMxy - SUMx * SUMy) / ( SUMx*SUMx - n * SUMxx );
+  *a = ( SUMx * SUMy - n * SUMxy ) / ( SUMx*SUMx - n * SUMxx );
   *b = ( SUMy - (*a) * SUMx ) / n; 
 }/* end of lsq */
 
